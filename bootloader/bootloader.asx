@@ -1,0 +1,272 @@
+READ_SECTOR	 equ $52
+WRITE_SECTOR	 equ $57
+GET_CHUNK	 equ $f8
+GET_NEXT_CHUNK   equ $f9
+SET_HIGH_SPEED	 equ $fb
+
+MAX_CHUNK_LENGTH equ 512
+
+ddevic	equ	$0300
+dunit	equ	$0301
+dcmnd	equ	$0302
+dstats	equ	$0303
+dbufa	equ	$0304
+dtimlo	equ	$0306
+dunuse	equ	$0307
+dbyt	equ	$0308
+daux1	equ	$030a
+daux2	equ	$030b
+
+iccmd	equ	$0342
+icbufa	equ	$0344
+icbufl	equ	$0348
+
+jciomain equ	$e456
+jsioint	equ	$e459
+
+	opt	h-f+
+
+	org	$0700
+bflag	dta	0
+brcnt	dta	3
+bldadr	dta	a($0700)
+biwtadr	dta	a($0000)
+jxbcont	jmp	boot
+sabyte	dta	1
+drvbyt	dta	0
+	dta	0
+sasa	dta	a($0000)
+dsflg	dta	0
+dflink	dta	a($0000)
+bldisp	dta	0
+dfladr	dta	a($0000)
+
+	;         012345678901234567890123456789123456789'
+msg	dta	c'Loading '
+    :32	dta	0
+	dta	$9b
+debug	dta	a(0)
+segsta	dta	a(0)
+segend	dta	a(0)
+chlen	dta	a(0)
+fstblk	dta	a(0)
+
+dummy_init
+	rts
+
+putline
+	ldx	#$00
+	sta	icbufa,x
+	tya
+	sta	icbufa+1,x
+	lda	#$ff
+	sta	icbufl,x
+	lda	#$09
+	sta	iccmd,x
+	jmp	jciomain
+
+sio_read
+	lda	dbyt
+	sta	daux1
+	lda	dbyt+1
+	sta	daux2
+	lda	#$31
+	sta	ddevic
+	lda	#$01
+	sta	dunit
+	lda	#$40
+	sta	dstats
+	lda	#$08
+	sta	dtimlo
+	jsr	jsioint
+	rts
+
+boot
+	; read sector 4
+	lda	#<[$700+384]
+	sta	dbufa
+	lda	#>[$700+384]
+	sta	dbufa+1
+	lda	#128
+	sta	dbyt
+	lda	#0
+	sta	dbyt+1
+	lda	#4
+	sta	daux1
+	lda	#0
+	sta	daux2
+	lda	#$31
+	sta	ddevic
+	lda	#$01
+	sta	dunit
+	lda	#$40
+	sta	dstats
+	lda	#$08
+	sta	dtimlo
+	lda	#READ_SECTOR
+	sta	dcmnd
+	jsr	jsioint
+
+	; display message
+	lda	#<msg
+	ldy	#>msg
+	jsr	putline
+
+	; reset run address
+	lda	#0
+	sta	$2e0
+	sta	$2e1
+
+segment_loop
+
+	; read header
+	lda	#GET_NEXT_CHUNK
+read_header
+	sta	dcmnd
+	lda	#<segsta
+	sta	dbufa
+	lda	#>segsta
+	sta	dbufa+1
+	lda	#4
+	sta	dbyt
+	lda	#0
+	sta	dbyt+1
+	jsr	sio_read
+	bpl	got_header
+	lda	#GET_CHUNK
+	jmp	read_header
+got_header
+
+	; segment_start = segment_end = $ffff => run
+	lda	#$ff
+	cmp	segsta
+	bne	no_run
+	cmp	segsta+1
+	bne	no_run
+	cmp	segend
+	bne	no_run
+	cmp	segend+1
+	bne	no_run
+	lda	$2e0
+	ora	$2e1
+	bne	run_2e0
+	jmp	(fstblk)
+run_2e0	jmp	($2e0)
+no_run
+
+	lda	#$ff
+	cmp	segsta
+	bne	skip_ff
+	cmp	segsta+1
+	bne	skip_ff
+	; skip $FFFF in header
+	lda	segend
+	sta	segsta
+	lda	segend+1
+	sta	segsta+1
+	; read segmend end
+	lda	#GET_NEXT_CHUNK
+read_segend
+	sta	dcmnd
+	lda	#<segend
+	sta	dbufa
+	lda	#>segend
+	sta	dbufa+1
+	lda	#2
+	sta	dbyt
+	lda	#0
+	sta	dbyt+1
+	jsr	sio_read
+	bpl	got_segend
+	lda	#GET_CHUNK
+	jmp	read_segend
+got_segend
+skip_ff
+
+	; save 1st block's start address
+	lda	fstblk
+	ora	fstblk+1
+	bne	done_save_1st_block
+	lda	segsta
+	sta	fstblk
+	lda	segsta+1
+	sta	fstblk+1
+done_save_1st_block
+
+	; init address -> RTS
+	lda	#<dummy_init
+	sta	$02e2
+	lda	#>dummy_init
+	sta	$02e3
+
+get_segment
+	; segment_start > segment_end => init
+	sec
+	lda	segend
+	sbc	segsta
+	lda	segend+1
+	sbc	segsta+1
+	bcs	next_chunk
+
+init	jsr	jmp_init
+	jmp	segment_loop
+jmp_init
+	jmp	($02e2)
+
+next_chunk
+
+	; chunk_length := min(MAX_CHUNK_LENGTH, segment_end-segment_start+1)
+	sec
+	lda	segend
+	sbc	segsta
+	sta	chlen
+	lda	segend+1
+	sbc	segsta+1
+	sta	chlen+1
+	clc
+	lda	#1
+	adc	chlen
+	sta	chlen
+	lda	#0
+	adc	chlen+1
+	sta	chlen+1
+	sec
+	lda	#<MAX_CHUNK_LENGTH
+	sbc	chlen
+	lda	#>MAX_CHUNK_LENGTH
+	sbc	chlen+1
+	bcs	min_done
+	lda	#<MAX_CHUNK_LENGTH
+	sta	chlen
+	lda	#>MAX_CHUNK_LENGTH
+	sta	chlen+1
+min_done
+
+	; get next chunk
+	lda	#GET_NEXT_CHUNK
+data_loop
+	sta	dcmnd
+	lda	segsta
+	sta	dbufa
+	lda	segsta+1
+	sta	dbufa+1
+	lda	chlen
+	sta	dbyt
+	lda	chlen+1
+	sta	dbyt+1
+	jsr	sio_read
+	bpl	got_segment
+	lda	#GET_CHUNK
+	jmp	data_loop
+got_segment
+	
+	; segment_start := segment_start + chunk_length
+	clc
+	lda	chlen
+	adc	segsta
+	sta	segsta
+	lda	chlen+1
+	adc	segsta+1
+	sta	segsta+1
+
+	jmp	get_segment
