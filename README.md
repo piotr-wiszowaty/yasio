@@ -40,7 +40,7 @@ Prerequisities:
 Usage
 -----
 
-# SD card preparation
+### SD card preparation
 
 Before turning on the device prepare an SD card - write configuration file
 (`setup/yasio.conf`) and setup program (`setup/yasio_setup.xex`) to the root
@@ -52,7 +52,7 @@ editor or setup using the setup program. The setup program is 'inserted' into
 pressing the setup button when the device is working and rebooting the Atari
 computer.
 
-# Configuration
+### Configuration
 
 Configuration file `yasio.conf` is an ASCII text file with LF-terminated lines.
 Each line consists one configuration entry. Each entry starts with an entry key
@@ -67,7 +67,7 @@ Available configuration entries and :
 * `ST` - WiFi station parameters: SSID, password; e.g.: `Some_ssid
   password123`; may occur multiple times
 
-# LED indicator colors
+### LED indicator colors
 
 * green - SD card initialization successful, WiFi initialization successful
 * red - SD card initialization failure
