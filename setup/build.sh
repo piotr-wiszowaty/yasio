@@ -5,4 +5,5 @@ function build {
     xasm /l /tmp/$1.asx /o:/tmp/$1.xex || exit 1
 }
 
+cd `dirname $0`
 build yasio_setup
