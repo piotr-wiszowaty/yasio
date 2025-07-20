@@ -36,6 +36,9 @@ Prerequisities:
 4. Flash the firmware by executing `pio run -e 0 -t upload` in `uc`
    subdirectory.
 5. Disconnect the device from Atari computer; put the device in the enclosure.
+   Three cutouts in the enclosure are required - for the USB socket, for the
+   setup button and for the SIO cable. Note that the enclosure already has a
+   hole allowing insertion/ejection of the SD card.
 
 Usage
 -----
@@ -66,6 +69,16 @@ Available configuration entries and :
   e.g.: `AP:My_ssid my_password 192.168.8.1/24`
 * `ST` - WiFi station parameters: SSID, password; e.g.: `Some_ssid
   password123`; may occur multiple times
+
+### WiFi
+
+In access point mode the device advertises itself using the configured SSID and
+password. The device address assigned is also taken from the configuration.
+
+In station mode the configured access points are tried in the given order until
+a connection to one succeeds. The assigned address may be retrieved by running
+the setup program (pressing spacebar may be necessary to refresh the address
+shown).
 
 ### LED indicator colors
 
